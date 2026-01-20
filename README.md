@@ -158,21 +158,46 @@ For detailed instructions, see the [VPN IP Service Setup Guide](VPN_IP_SETUP.md)
 
 ### WireGuard Setup
 
-1. **Start WireGuard container:**
+1. **Set up DNS port forwarding** (required to avoid port 53 conflict with systemd-resolved):
+   
+   dnsmasq listens on port 5353, but WireGuard clients need to use standard port 53. Set up iptables port forwarding:
+   
+   ```bash
+   # Redirect DNS requests from 10.0.0.1:53 to 10.0.0.1:5353
+   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p udp --dport 53 -j REDIRECT --to-port 5353
+   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p tcp --dport 53 -j REDIRECT --to-port 5353
+   
+   # Make it persistent (Ubuntu/Debian)
+   sudo apt-get install -y iptables-persistent
+   sudo netfilter-persistent save
+   ```
+   
+   **Why this is needed:**
+   - systemd-resolved uses `127.0.0.1:53` (server DNS)
+   - dnsmasq uses `10.0.0.1:5353` (VPN DNS, avoids conflict)
+   - iptables redirects `10.0.0.1:53` → `10.0.0.1:5353` (transparent to clients)
+   - WireGuard clients use `DNS = 10.0.0.1` (standard port 53, works with macOS)
+
+2. **Start WireGuard container:**
    ```bash
    docker compose -f docker-compose.vpn.yml up -d wireguard
    ```
 
-2. **Get client configuration:**
+3. **Start dnsmasq:**
+   ```bash
+   docker compose -f docker-compose.vpn.yml up -d dnsmasq
+   ```
+
+4. **Get client configuration:**
    ```bash
    docker compose -f docker-compose.vpn.yml exec wireguard cat /config/peer1/peer1.conf
    ```
 
-3. **Import config to WireGuard client** on your device
+5. **Import config to WireGuard client** on your device
 
-4. **Connect to VPN**
+6. **Connect to VPN**
 
-5. **Verify DNS resolution:**
+7. **Verify DNS resolution:**
    ```bash
    nslookup jenkins.hs 10.0.0.1
    ```

@@ -21,8 +21,10 @@ services:
       - --server=8.8.4.4
       - --log-queries
       - --no-resolv  # Don't use /etc/resolv.conf
-      - --listen-address=10.0.0.1  # Listen only on VPN interface (10.0.0.1), not on all interfaces
-      - --port=53  # Use standard DNS port (only listening on 10.0.0.1, so won't conflict with systemd-resolved on 127.0.0.1)
+      - --listen-address=10.0.0.1  # Listen only on VPN interface (10.0.0.1)
+      - --bind-interfaces  # Only bind to specified interfaces
+      - --port=5353  # Use non-standard port to avoid conflict with systemd-resolved (port 53)
+      # Port forwarding: iptables redirects 10.0.0.1:53 → 10.0.0.1:5353 (see README)
     depends_on:
       - wireguard
     restart: unless-stopped
@@ -31,9 +33,9 @@ services:
         limits:
           cpus: '0.1'
           memory: 64M
-    # Note: dnsmasq listens only on 10.0.0.1:53 (VPN interface), not on 0.0.0.0:53
-    # This avoids conflicts with systemd-resolved which listens on 127.0.0.1:53
-    # WireGuard clients can use standard DNS = 10.0.0.1 (no port needed)
+    # Note: dnsmasq listens on 10.0.0.1:5353 to avoid conflict with systemd-resolved (127.0.0.1:53)
+    # iptables port forwarding redirects 10.0.0.1:53 → 10.0.0.1:5353
+    # WireGuard clients use standard DNS = 10.0.0.1 (port 53, transparently forwarded to 5353)
 
   wireguard:
     image: linuxserver/wireguard:latest
