@@ -1,0 +1,7 @@
+# Environment variables
+.env
+
+# Docker volumes (if any local backups)
+*.tar
+*.tar.gz
+nginx.old.conf

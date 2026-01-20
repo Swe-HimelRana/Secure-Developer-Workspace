@@ -1,0 +1,251 @@
+# Secure configuration for VPN-only access
+# Bind Jenkins to localhost only - accessible only via VPN
+services:
+  dnsmasq:
+    image: strm/dnsmasq:latest
+    container_name: dnsmasq
+    network_mode: host  # Use host networking to serve DNS to VPN clients
+    cap_add:
+      - NET_ADMIN
+      - NET_BIND_SERVICE  # Required to bind to port 53
+    volumes:
+      - dnsmasq_config:/etc/dnsmasq.d
+      - dnsmasq_leases:/var/lib/misc
+    command:
+      - --address=/hs/10.0.0.1
+      - --address=/jenkins.hs/10.0.0.1
+      - --address=/kanban.hs/10.0.0.1
+      - --address=/draw.hs/10.0.0.1
+      - --address=/diagram.hs/10.0.0.1
+      - --server=8.8.8.8
+      - --server=8.8.4.4
+      - --log-queries
+      - --no-resolv  # Don't use /etc/resolv.conf
+      - --listen-address=10.0.0.1  # Listen only on VPN interface (10.0.0.1), not on all interfaces
+      - --port=53  # Use standard DNS port (only listening on 10.0.0.1, so won't conflict with systemd-resolved on 127.0.0.1)
+    depends_on:
+      - wireguard
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 64M
+    # Note: dnsmasq listens only on 10.0.0.1:53 (VPN interface), not on 0.0.0.0:53
+    # This avoids conflicts with systemd-resolved which listens on 127.0.0.1:53
+    # WireGuard clients can use standard DNS = 10.0.0.1 (no port needed)
+
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: wireguard
+    network_mode: host  # Required for WireGuard to route traffic properly
+    # Note: With network_mode: host, ports are directly exposed on the host
+    # No port mapping needed - WireGuard listens on SERVERPORT (91820) directly
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - SERVERURL=${WIREGUARD_SERVER_URL:-auto}  # Auto-detect or set to your VPS IP
+      - SERVERPORT=51820  # Port WireGuard listens on (must match actual listening port with host networking)
+      - PEERS=${WIREGUARD_PEERS:-1}  # Number of client configs to generate
+      - PEERDNS=10.0.0.1  # Use dnsmasq on standard port 53 for custom domain resolution (jenkins.hs, kanban.hs)
+      - INTERNAL_SUBNET=10.0.0.0
+      - ALLOWEDIPS=10.0.0.0/24,172.17.0.0/16  # Split tunnel: Only VPN and Docker networks route through VPN, other traffic uses normal connection
+      - PERSISTENTKEEPALIVE_PEERS=
+      - LOG_CONFS=true
+    volumes:
+      - wireguard_config:/config
+      - /lib/modules:/lib/modules  # Read-write: allows module installation if needed (read-only is safer but may prevent some operations)
+    # Note: sysctls are not allowed with network_mode: host
+    # The sysctl net.ipv4.conf.all.src_valid_mark=1 should be set on the host if needed
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  jenkins:
+    image: jenkins/jenkins:latest-jdk25
+    container_name: jenkins
+    # Important: Explicit DNS so Jenkins can always reach the internet (update center),
+    # even if host DNS/dnsmasq/WireGuard setup is changing.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Requires VPN IP service setup (see README.md)
+    ports:
+      - "10.0.0.1:9080:8080"
+      - "10.0.0.1:9500:50000"
+    depends_on:
+      - wireguard
+    volumes:
+      - jenkins_home:/var/jenkins_home
+    restart: unless-stopped
+    networks:
+      - jenkins-network
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:size=2g
+      - /var/jenkins_home/tmp:size=2g
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  docker-agent:
+    build: .
+    container_name: jenkins-docker-agent
+    user: root
+    privileged: true
+    # Explicit DNS so builds running on the agent can resolve/pull dependencies reliably
+    # even if host DNS/dnsmasq is misconfigured.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      - JENKINS_URL=http://jenkins:8080  # Uses Docker service name - works via Docker network, not host ports
+      - JENKINS_AGENT_NAME=docker-agent
+      - JENKINS_SECRET=${JENKINS_SECRET:-Y0UR_AGENT_SECRET}
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/workspace
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - jenkins_agent_workspace:/home/jenkins/workspace
+    # IMPORTANT: Do NOT auto-start this agent. Start it manually after adding the node in Jenkins UI:
+    # docker compose up -d docker-agent
+    restart: "no"
+    networks:
+      - jenkins-network
+    # Note: Agent communicates with Jenkins via Docker network (jenkins:8080), not via host ports
+    # This works even though Jenkins is only bound to 10.0.0.1 externally
+
+  kanban:
+    image: kanboard/kanboard:latest
+    container_name: kanban
+    hostname: kanban.hs  # Custom hostname for DNS resolution
+    # Explicit DNS so Kanban can reach the internet (updates/plugins, if needed)
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Requires VPN IP service setup (see README.md)
+    ports:
+      - "10.0.0.1:9090:80"
+      # Access via: http://kanban.hs:9090 (when connected to VPN)
+    depends_on:
+      - wireguard
+    volumes:
+      - kanban_data:/var/www/app/data
+    environment:
+      # Use sqlite with the data directory mounted as a volume
+      - DB_DRIVER=sqlite
+      - DB_FILENAME=data/db.sqlite
+    restart: unless-stopped
+    networks:
+      - jenkins-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  excalidraw:
+    image: excalidraw/excalidraw:latest
+    container_name: excalidraw
+    hostname: draw.hs
+    # Explicit DNS for internet access
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Requires VPN IP service setup (see README.md)
+    ports:
+      - "10.0.0.1:8081:80"
+      # Access via: http://draw.hs (when connected to VPN)
+    depends_on:
+      - wireguard
+    restart: unless-stopped
+    networks:
+      - jenkins-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  drawio:
+    image: jgraph/drawio:latest
+    container_name: drawio
+    hostname: diagram.hs
+    # Explicit DNS for internet access
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Requires VPN IP service setup (see README.md)
+    ports:
+      - "10.0.0.1:8082:8080"
+      # Access via: http://diagram.hs (when connected to VPN)
+    depends_on:
+      - wireguard
+    restart: unless-stopped
+    networks:
+      - jenkins-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Requires VPN IP service setup (see README.md)
+    ports:
+      - "10.0.0.1:80:80"
+      - "10.0.0.1:443:443"
+      # Access: https://jenkins.hs, https://kanban.hs, https://draw.hs, https://diagram.hs (VPN only)
+      # HTTP automatically redirects to HTTPS
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - jenkins
+      - kanban
+      - excalidraw
+      - drawio
+    restart: unless-stopped
+    networks:
+      - jenkins-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+networks:
+  jenkins-network:
+    driver: bridge
+    internal: false
+
+volumes:
+  jenkins_home:
+  jenkins_agent_workspace:
+  wireguard_config:
+  kanban_data:
+  dnsmasq_config:
+  dnsmasq_leases:
+

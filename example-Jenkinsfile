@@ -1,0 +1,101 @@
+pipeline {
+    agent {
+        label 'docker-agent'  // Use the docker-agent node
+    }
+    
+    stages {
+        stage('Node.js Version') {
+            steps {
+                script {
+                    echo '=== Node.js Version Check ==='
+                    sh '''
+                        docker run --rm node:lts node --version
+                        docker run --rm node:lts npm --version
+                    '''
+                }
+            }
+        }
+        
+        stage('Python Version') {
+            steps {
+                script {
+                    echo '=== Python Version Check ==='
+                    sh '''
+                        docker run --rm python:3.11 python --version
+                        docker run --rm python:3.11 pip --version
+                    '''
+                }
+            }
+        }
+        
+        stage('PHP Version') {
+            steps {
+                script {
+                    echo '=== PHP Version Check ==='
+                    sh '''
+                        docker run --rm php:8.2-cli php --version
+                        docker run --rm php:8.2-cli composer --version 2>/dev/null || echo "Composer not available in base image"
+                    '''
+                }
+            }
+        }
+        
+        stage('Build Example') {
+            steps {
+                script {
+                    echo '=== Building with Multiple Languages ==='
+                    
+                    // Example: Create and run a simple Node.js app
+                    sh '''
+                        cat > app.js << 'EOF'
+                        console.log('Hello from Node.js ' + process.version);
+                        EOF
+                        docker run --rm -v ${PWD}:/app -w /app node:lts node app.js
+                    '''
+                    
+                    // Example: Create and run a simple Python script
+                    sh '''
+                        cat > app.py << 'EOF'
+                        import sys
+                        print(f'Hello from Python {sys.version}')
+                        EOF
+                        docker run --rm -v ${PWD}:/app -w /app python:3.11 python app.py
+                    '''
+                    
+                    // Example: Create and run a simple PHP script
+                    sh '''
+                        cat > app.php << 'EOF'
+                        <?php 
+                        echo 'Hello from PHP ' . PHP_VERSION . PHP_EOL;
+                        ?>
+                        EOF
+                        docker run --rm -v ${PWD}:/app -w /app php:8.2-cli php app.php
+                    '''
+                }
+            }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                script {
+                    echo '=== Cleaning up temporary files ==='
+                    sh '''
+                        rm -f app.js app.py app.php
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Pipeline execution completed'
+        }
+        success {
+            echo '✅ All stages completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+        }
+    }
+}
