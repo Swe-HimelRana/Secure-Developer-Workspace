@@ -1,3 +1,7 @@
+```
+
+```
+
 # Secure Developer Workspace
 
 A comprehensive, VPN-only development environment featuring Jenkins CI/CD, Kanban project management, collaborative whiteboarding, and diagramming tools - all accessible securely through WireGuard VPN.
@@ -16,6 +20,7 @@ This setup provides a **secure, self-hosted development environment** for teams 
 - 🐳 **Docker-Based**: Easy to deploy and manage with Docker Compose
 
 **Perfect for:**
+
 - Development teams needing secure CI/CD infrastructure
 - Remote teams requiring VPN-only access to development tools
 - Organizations wanting self-hosted alternatives to cloud services
@@ -36,6 +41,26 @@ This setup provides a **secure, self-hosted development environment** for teams 
 
 ## Prerequisites
 
+### VPS Requirements
+
+**Minimum Configuration:**
+
+- **CPU**: 2 cores (4 cores recommended for better performance)
+- **RAM**: 2 GB (4-6 GB recommended)
+- **Storage**: 20 GB SSD (50 GB recommended for Jenkins data and logs)
+- **Network**: 1 Gbps connection
+
+**Why these requirements?**
+
+- Jenkins requires significant resources (1 CPU core, 2 GB RAM allocated)
+- Multiple services running simultaneously (Jenkins, Semaphore, Kanban, etc.)
+- Docker overhead and system processes need additional resources
+- Recommended specs provide headroom for concurrent builds and operations
+
+**Note**: Resource limits are configured in `docker-compose.vpn.yml`. You can adjust these based on your VPS capacity, but reducing too much may cause performance issues.
+
+### Software Requirements
+
 - A VPS running Linux (Ubuntu/Debian recommended)
 - Docker and Docker Compose installed
 - Root or sudo access
@@ -47,8 +72,8 @@ This setup provides a **secure, self-hosted development environment** for teams 
 ### 1. Clone or Download This Repository
 
 ```bash
-git clone <repository-url>
-cd myJenkinsSetup
+git clone https://github.com/Swe-HimelRana/Secure-Developer-Workspace
+cd Secure-Developer-Workspace
 ```
 
 ### 2. Set Up VPN IP Service
@@ -76,6 +101,7 @@ WIREGUARD_PEERS=1  # Number of WireGuard client configs to generate
 ### 4. Start Services
 
 **Start all services:**
+
 ```bash
 docker compose -f docker-compose.vpn.yml up -d
 ```
@@ -115,6 +141,7 @@ docker compose -f docker-compose.vpn.yml up -d nginx
 ```
 
 **Verify services are running:**
+
 ```bash
 docker compose -f docker-compose.vpn.yml ps
 ```
@@ -174,45 +201,44 @@ For detailed instructions, see the [VPN IP Service Setup Guide](VPN_IP_SETUP.md)
 ### WireGuard Setup
 
 1. **Set up DNS port forwarding** (required to avoid port 53 conflict with systemd-resolved):
-   
+
    dnsmasq listens on port 5353, but WireGuard clients need to use standard port 53. Set up iptables port forwarding:
-   
+
    ```bash
    # Redirect DNS requests from 10.0.0.1:53 to 10.0.0.1:5353
    sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p udp --dport 53 -j REDIRECT --to-port 5353
    sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p tcp --dport 53 -j REDIRECT --to-port 5353
-   
+
    # Make it persistent (Ubuntu/Debian)
    sudo apt-get install -y iptables-persistent
    sudo netfilter-persistent save
    ```
-   
+
    **Why this is needed:**
+
    - systemd-resolved uses `127.0.0.1:53` (server DNS)
    - dnsmasq uses `10.0.0.1:5353` (VPN DNS, avoids conflict)
    - iptables redirects `10.0.0.1:53` → `10.0.0.1:5353` (transparent to clients)
    - WireGuard clients use `DNS = 10.0.0.1` (standard port 53, works with macOS)
-
 2. **Start WireGuard container:**
+
    ```bash
    docker compose -f docker-compose.vpn.yml up -d wireguard
    ```
-
 3. **Start dnsmasq:**
+
    ```bash
    docker compose -f docker-compose.vpn.yml up -d dnsmasq
    ```
-
 4. **Get client configuration:**
+
    ```bash
    docker compose -f docker-compose.vpn.yml exec wireguard cat /config/peer1/peer1.conf
    ```
-
 5. **Import config to WireGuard client** on your device
-
 6. **Connect to VPN**
-
 7. **Verify DNS resolution:**
+
    ```bash
    nslookup jenkins.hs 10.0.0.1
    ```
@@ -220,24 +246,25 @@ For detailed instructions, see the [VPN IP Service Setup Guide](VPN_IP_SETUP.md)
 ### Jenkins Setup
 
 1. **Access Jenkins:**
+
    - Connect to WireGuard VPN
    - Open `https://jenkins.hs` in your browser
    - Complete initial setup wizard
-
 2. **Configure Docker Agent:**
+
    - Go to `Manage Jenkins` → `Manage Nodes and Clouds` → `New Node`
    - Node name: `docker-agent`
    - Type: `Permanent Agent`
    - Remote root directory: `/home/jenkins/workspace`
    - Launch method: `Launch agent by connecting it to the controller` (JNLP)
    - Copy the agent secret
-
 3. **Update `.env` with agent secret:**
+
    ```bash
    JENKINS_SECRET=your_secret_from_jenkins_ui
    ```
-
 4. **Start Docker agent:**
+
    ```bash
    docker compose -f docker-compose.vpn.yml up -d docker-agent
    ```
@@ -245,45 +272,53 @@ For detailed instructions, see the [VPN IP Service Setup Guide](VPN_IP_SETUP.md)
 ### Starting Individual Services
 
 **Excalidraw (draw.hs):**
+
 ```bash
 docker compose -f docker-compose.vpn.yml up -d excalidraw
 # Access at: https://draw.hs
 ```
 
 **Draw.io (diagram.hs):**
+
 ```bash
 docker compose -f docker-compose.vpn.yml up -d drawio
 # Access at: https://diagram.hs
 ```
 
 **Kanban Board:**
+
 ```bash
 docker compose -f docker-compose.vpn.yml up -d kanban
 # Access at: https://kanban.hs
 ```
 
 **Startpage (Dashboard):**
+
 ```bash
 docker compose -f docker-compose.vpn.yml up -d dashboard
 # Access at: https://startpage.hs
 ```
 
 **TempMail:**
+
 ```bash
 docker compose -f docker-compose.vpn.yml up -d tempmail
 # Access at: https://tempmail.hs
 ```
 
 **Ansible Semaphore (Ansible, Terraform, OpenTofu, Terragrunt):**
+
 ```bash
 docker compose -f docker-compose.vpn.yml up -d semaphore
 # Access at: https://semaphoreui.hs
 # Supports: Ansible playbooks, Terraform, OpenTofu, and Terragrunt workflows
 ```
+
 <｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
 read_file
 
 **Check service status:**
+
 ```bash
 # Check if specific service is running
 docker compose -f docker-compose.vpn.yml ps jenkins
@@ -306,6 +341,7 @@ docker compose -f docker-compose.vpn.yml logs semaphore
 For HTTPS access, you need SSL certificates. See the [SSL Certificate Guide](SSL_CERTIFICATE.md) for detailed instructions.
 
 **Quick summary:**
+
 1. Install `mkcert` on your local machine
 2. Generate certificates: `mkcert jenkins.hs kanban.hs draw.hs diagram.hs startpage.hs tempmail.hs semaphoreui.hs`
 3. Copy certificates to server: `scp certs/*.pem user@server:/path/to/app/certs/`
@@ -344,6 +380,7 @@ WIREGUARD_PEERS=1  # Number of client configs to generate
 ### Customizing Services
 
 You can modify `docker-compose.vpn.yml` to:
+
 - Adjust resource limits (CPU/memory)
 - Change port mappings
 - Add environment variables
@@ -351,15 +388,17 @@ You can modify `docker-compose.vpn.yml` to:
 
 ## Adding New Services
 
-You can add additional services to this setup. However, **keep it focused on essential developer tools**. 
+You can add additional services to this setup. However, **keep it focused on essential developer tools**.
 
 **Good additions:**
+
 - Code review tools (e.g., Gitea, GitLab)
 - Documentation servers (e.g., Wiki.js, BookStack)
 - Monitoring tools (e.g., Grafana, Prometheus)
 - Development databases (e.g., PostgreSQL, Redis)
 
 **Avoid:**
+
 - Entertainment services (media servers, game servers)
 - Non-development tools
 - Services that don't fit the developer workflow
@@ -440,6 +479,7 @@ Contact: contact[at]himelrana.com
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 **Guidelines:**
+
 - Keep services focused on developer tools
 - Maintain security best practices
 - Update documentation for any changes
@@ -456,8 +496,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - **WireGuard**: [https://www.wireguard.com/](https://www.wireguard.com/)
 - **Docker**: [https://www.docker.com/](https://www.docker.com/)
 - **Nginx**: [https://nginx.org/](https://nginx.org/)
- - **Glance Dashboard**: [https://github.com/glanceapp/glance](https://github.com/glanceapp/glance)
- - **TempMail Service**: [https://github.com/swe-himelrana/tempmail](https://github.com/swe-himelrana/tempmail)
+- **Glance Dashboard**: [https://github.com/glanceapp/glance](https://github.com/glanceapp/glance)
+- **TempMail Service**: [https://github.com/swe-himelrana/tempmail](https://github.com/swe-himelrana/tempmail)
+- **Ansible Semaphore**: [https://semaphoreui.com/](https://semaphoreui.com/) | [https://docs.ansible-semaphore.com/](https://docs.ansible-semaphore.com/) | [Docker Hub](https://hub.docker.com/r/semaphoreui/semaphore) - Modern UI for Ansible, Terraform, OpenTofu, and Terragrunt
 
 ### Docker Images Used
 
@@ -480,10 +521,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Support
 
 For issues, questions, or contributions:
+
 - Open an issue on GitHub
 - Contact: contact[at]himelrana.com
 
 ---
 
 **Note**: This setup is designed for development/internal use. For production deployments, consider additional security hardening, monitoring, and backup strategies.
-
