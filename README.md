@@ -99,6 +99,15 @@ docker compose -f docker-compose.vpn.yml up -d excalidraw
 # Start Draw.io (diagram.hs)
 docker compose -f docker-compose.vpn.yml up -d drawio
 
+# Start Startpage (Dashboard)
+docker compose -f docker-compose.vpn.yml up -d dashboard
+
+# Start TempMail
+docker compose -f docker-compose.vpn.yml up -d tempmail
+
+# Start Ansible Semaphore
+docker compose -f docker-compose.vpn.yml up -d semaphore
+
 # Start Nginx reverse proxy
 docker compose -f docker-compose.vpn.yml up -d nginx
 ```
@@ -118,6 +127,10 @@ You should see all services with status "Up" or "Healthy".
    - **Kanban**: `https://kanban.hs`
    - **Excalidraw**: `https://draw.hs`
    - **Draw.io**: `https://diagram.hs`
+   - **Startpage (Dashboard)**: `https://startpage.hs`
+   - **TempMail**: `https://tempmail.hs`
+   - **Ansible Semaphore**: `https://semaphoreui.hs`
+   - **TempMail**: `https://tempmail.hs`
 
 ## Detailed Setup Guide
 
@@ -247,6 +260,24 @@ docker compose -f docker-compose.vpn.yml up -d kanban
 # Access at: https://kanban.hs
 ```
 
+**Startpage (Dashboard):**
+```bash
+docker compose -f docker-compose.vpn.yml up -d dashboard
+# Access at: https://startpage.hs
+```
+
+**TempMail:**
+```bash
+docker compose -f docker-compose.vpn.yml up -d tempmail
+# Access at: https://tempmail.hs
+```
+
+**Ansible Semaphore:**
+```bash
+docker compose -f docker-compose.vpn.yml up -d semaphore
+# Access at: https://semaphoreui.hs
+```
+
 **Check service status:**
 ```bash
 # Check if specific service is running
@@ -254,10 +285,15 @@ docker compose -f docker-compose.vpn.yml ps jenkins
 docker compose -f docker-compose.vpn.yml ps excalidraw
 docker compose -f docker-compose.vpn.yml ps drawio
 docker compose -f docker-compose.vpn.yml ps kanban
+docker compose -f docker-compose.vpn.yml ps dashboard
+docker compose -f docker-compose.vpn.yml ps tempmail
 
 # View logs
 docker compose -f docker-compose.vpn.yml logs excalidraw
 docker compose -f docker-compose.vpn.yml logs drawio
+docker compose -f docker-compose.vpn.yml logs dashboard
+docker compose -f docker-compose.vpn.yml logs tempmail
+docker compose -f docker-compose.vpn.yml logs semaphore
 ```
 
 ### SSL Certificate Setup
@@ -266,7 +302,7 @@ For HTTPS access, you need SSL certificates. See the [SSL Certificate Guide](SSL
 
 **Quick summary:**
 1. Install `mkcert` on your local machine
-2. Generate certificates: `mkcert jenkins.hs kanban.hs draw.hs diagram.hs`
+2. Generate certificates: `mkcert jenkins.hs kanban.hs draw.hs diagram.hs startpage.hs tempmail.hs semaphoreui.hs`
 3. Copy certificates to server: `scp certs/*.pem user@server:/path/to/app/certs/`
 4. Install CA certificate on your devices
 5. Restart nginx: `docker compose restart nginx`
@@ -282,6 +318,9 @@ All services bind to `10.0.0.1` (VPN interface only):
 - **Kanban**: `10.0.0.1:9090` → `https://kanban.hs`
 - **Excalidraw**: `10.0.0.1:8081` → `https://draw.hs`
 - **Draw.io**: `10.0.0.1:8082` → `https://diagram.hs`
+- **Startpage (Dashboard)**: `10.0.0.1:8083` → `https://startpage.hs`
+- **TempMail**: `10.0.0.1:8084` → `https://tempmail.hs`
+- **Ansible Semaphore**: `10.0.0.1:8085` → `https://semaphoreui.hs`
 - **Nginx**: `10.0.0.1:80` (HTTP redirect) and `10.0.0.1:443` (HTTPS)
 
 ### Environment Variables
@@ -412,6 +451,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - **WireGuard**: [https://www.wireguard.com/](https://www.wireguard.com/)
 - **Docker**: [https://www.docker.com/](https://www.docker.com/)
 - **Nginx**: [https://nginx.org/](https://nginx.org/)
+ - **Glance Dashboard**: [https://github.com/glanceapp/glance](https://github.com/glanceapp/glance)
+ - **TempMail Service**: [https://github.com/swe-himelrana/tempmail](https://github.com/swe-himelrana/tempmail)
 
 ### Docker Images Used
 
@@ -422,6 +463,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - `linuxserver/wireguard:latest` - WireGuard VPN server
 - `strm/dnsmasq:latest` - DNS server
 - `nginx:alpine` - Reverse proxy
+- `ghcr.io/swe-himelrana/glance-dashboard:latest` - Startpage dashboard
+- `ghcr.io/swe-himelrana/tempmail:latest` - Temp mail service
+- `semaphoreui/semaphore:latest` - Ansible Semaphore UI
 
 ## Additional Documentation
 

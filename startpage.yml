@@ -1,0 +1,94 @@
+server:
+
+theme:
+  light: false
+
+pages:
+  - name: Home
+    columns:
+      - size: small
+        widgets:
+          - type: calendar
+            first-day-of-week: monday
+
+          - type: weather
+            location: Dhaka, Bangladesh
+            units: metric
+
+          - type: markets
+            title: Crypto Prices
+            markets:
+              - symbol: BTC-USD
+                name: Bitcoin
+              - symbol: USDT-USD
+                name: Tether
+              - symbol: LTC-USD
+                name: Litecoin
+              - symbol: ETH-USD
+                name: Ethereum
+
+      - size: full
+        widgets:
+          - type: search
+            search-engine: google
+
+          - type: bookmarks
+            groups:
+              - title: Internal
+                links:
+                  - title: Jenins
+                    url: https://jenkins.hs
+                    icon: si:jenkins
+                  - title: Kanban
+                    url: https://kanban.hs
+                    icon: si:googletasks
+                  - title: Draw
+                    url: https://draw.hs
+                    icon: si:excalidraw
+                  - title: Diagram
+                    url: https://diagram.hs
+                    icon: si:diagramsdotnet
+                  - title: Temp Mail
+                    url: https://tempmail.hs
+                    icon: si:maildotcom
+                  - title: Semaphore UI
+                    url: https://semaphoreui.hs
+                    icon: si:ansible
+                  - title: Startpage
+                    url: https://startpage.hs
+                    icon: si:globe
+              - title: External
+                links:
+                  - title: GitHub
+                    url: https://github.com
+                    icon: si:github
+                  - title: ChatGPT
+                    url: https://chat.openai.com
+                    icon: si:openai
+
+          - type: docker-containers
+            title: Docker Containers
+
+          - type: monitor
+            title: Uptime Checks
+            sites:
+              - title: Google
+                url: https://google.com
+              - title: GitHub
+                url: https://github.com
+
+      - size: full
+        widgets:
+          - type: rss
+            title: Security News (CVE) Hgh
+            limit: 50
+            feeds:
+              - url: https://cvefeed.io/rssfeed/severity/high.xml
+                title: High Severity CVEs
+          - type: rss
+            title: Security News CVE
+            limit: 50
+            feeds:
+              - url: https://cvefeed.io/rssfeed/latest.xml
+                title: Latest CVEs
+            

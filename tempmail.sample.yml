@@ -1,0 +1,22 @@
+pin: "123456"
+accounts:
+  - host: "imap.gmail.com"
+    email: "dev-catchall@example.com"
+    password: "app-password"
+    port: 993
+    encryption: "ssl" # ssl, tls, or null
+    domains:
+      - "example.com"
+      - "another-example.com"
+  - host: "imap.yourdomain.com"
+    email: "dev-catchall@example.com"
+    password: "app-password"
+    port: 993
+    encryption: "ssl" # ssl, tls, or null
+    domains:
+      - "himelrana.com"
+      - "agoogle.com"
+
+# ========================================================
+# Rename this file to tempmail.yml and fill in the details
+# ========================================================

@@ -17,6 +17,9 @@ services:
       - --address=/kanban.hs/10.0.0.1
       - --address=/draw.hs/10.0.0.1
       - --address=/diagram.hs/10.0.0.1
+      - --address=/startpage.hs/10.0.0.1
+      - --address=/tempmail.hs/10.0.0.1
+      - --address=/semaphoreui.hs/10.0.0.1
       - --server=8.8.8.8
       - --server=8.8.4.4
       - --log-queries
@@ -211,6 +214,95 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  dashboard:
+    build: .
+    image: ghcr.io/swe-himelrana/glance-dashboard:latest
+    container_name: dashboard
+    hostname: startpage.hs
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    # Bind only to VPN interface (10.0.0.1)
+    ports:
+      - "10.0.0.1:8083:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./startpage.yml:/app/config/glance.yml:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=${TZ:-Etc/UTC}
+    depends_on:
+      - wireguard
+    restart: unless-stopped
+    networks:
+      - jenkins-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  tempmail:
+    image: ghcr.io/swe-himelrana/tempmail:latest
+    container_name: tempmail
+    hostname: tempmail.hs
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Requires VPN IP service setup (see README.md)
+    ports:
+      - "10.0.0.1:8084:80"
+    volumes:
+      - ./tempmail.yml:/var/www/html/tempmail.yml:ro
+      - tempmail_data:/var/www/html/data
+    restart: unless-stopped
+    depends_on:
+      - wireguard
+    networks:
+      - jenkins-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  semaphore:
+    image: semaphoreui/semaphore:latest
+    container_name: ansible-semaphore
+    hostname: semaphoreui.hs
+    # Explicit DNS for internet access
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Requires VPN IP service setup (see README.md)
+    ports:
+      - "10.0.0.1:8085:3000"
+      # Access via: https://ansible.hs (when connected to VPN)
+    environment:
+      - SEMAPHORE_DB_DIALECT=bolt  # Use BoltDB (lightweight, no MySQL needed)
+      - SEMAPHORE_ADMIN=admin
+      - SEMAPHORE_ADMIN_PASSWORD=${SEMAPHORE_ADMIN_PASSWORD:-changeme}  # Change in .env
+      - SEMAPHORE_ADMIN_NAME=Admin
+      - SEMAPHORE_ADMIN_EMAIL=${SEMAPHORE_ADMIN_EMAIL:-admin@localhost}
+      - SEMAPHORE_PLAYBOOK_PATH=/tmp/semaphore/
+      - ANSIBLE_HOST_KEY_CHECKING=false  # Disable host key checking for easier setup
+    volumes:
+      - semaphore_data:/etc/semaphore  # Stores BoltDB and configuration
+      - semaphore_playbooks:/tmp/semaphore  # Playbook storage
+    restart: unless-stopped
+    depends_on:
+      - wireguard
+    networks:
+      - jenkins-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
   nginx:
     image: nginx:alpine
     container_name: nginx-proxy
@@ -229,6 +321,9 @@ services:
       - kanban
       - excalidraw
       - drawio
+      - dashboard
+      - tempmail
+      - semaphore
     restart: unless-stopped
     networks:
       - jenkins-network
@@ -250,4 +345,7 @@ volumes:
   kanban_data:
   dnsmasq_config:
   dnsmasq_leases:
+  tempmail_data:
+  semaphore_data:
+  semaphore_playbooks:
 
