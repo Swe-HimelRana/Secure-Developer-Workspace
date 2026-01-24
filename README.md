@@ -8,6 +8,7 @@ This setup provides a **secure, self-hosted development environment** for teams 
 
 - 🔒 **Maximum Security**: All services accessible only via WireGuard VPN - no public internet exposure
 - 🚀 **CI/CD Pipeline**: Jenkins with Docker agent for building and testing applications
+- 🏗️ **Infrastructure as Code**: Semaphore UI for Ansible, Terraform, OpenTofu, and Terragrunt
 - 📋 **Project Management**: Kanban board for task tracking and project organization
 - ✏️ **Collaboration Tools**: Excalidraw for whiteboarding and Draw.io for diagrams
 - 🌐 **Split Tunneling**: VPN only routes traffic to your services, normal internet uses direct connection
@@ -23,6 +24,7 @@ This setup provides a **secure, self-hosted development environment** for teams 
 ## Features
 
 - ✅ **Jenkins CI/CD** with Docker agent support
+- ✅ **Semaphore UI** for Ansible, Terraform, OpenTofu, and Terragrunt
 - ✅ **WireGuard VPN** for secure access
 - ✅ **Kanban Board** for project management
 - ✅ **Excalidraw** for collaborative whiteboarding
@@ -105,7 +107,7 @@ docker compose -f docker-compose.vpn.yml up -d dashboard
 # Start TempMail
 docker compose -f docker-compose.vpn.yml up -d tempmail
 
-# Start Ansible Semaphore
+# Start Ansible Semaphore (Ansible, Terraform, OpenTofu, Terragrunt)
 docker compose -f docker-compose.vpn.yml up -d semaphore
 
 # Start Nginx reverse proxy
@@ -129,7 +131,7 @@ You should see all services with status "Up" or "Healthy".
    - **Draw.io**: `https://diagram.hs`
    - **Startpage (Dashboard)**: `https://startpage.hs`
    - **TempMail**: `https://tempmail.hs`
-   - **Ansible Semaphore**: `https://semaphoreui.hs`
+   - **Ansible Semaphore** (Ansible, Terraform, OpenTofu, Terragrunt): `https://semaphoreui.hs`
    - **TempMail**: `https://tempmail.hs`
 
 ## Detailed Setup Guide
@@ -272,11 +274,14 @@ docker compose -f docker-compose.vpn.yml up -d tempmail
 # Access at: https://tempmail.hs
 ```
 
-**Ansible Semaphore:**
+**Ansible Semaphore (Ansible, Terraform, OpenTofu, Terragrunt):**
 ```bash
 docker compose -f docker-compose.vpn.yml up -d semaphore
 # Access at: https://semaphoreui.hs
+# Supports: Ansible playbooks, Terraform, OpenTofu, and Terragrunt workflows
 ```
+<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
+read_file
 
 **Check service status:**
 ```bash
@@ -320,7 +325,7 @@ All services bind to `10.0.0.1` (VPN interface only):
 - **Draw.io**: `10.0.0.1:8082` → `https://diagram.hs`
 - **Startpage (Dashboard)**: `10.0.0.1:8083` → `https://startpage.hs`
 - **TempMail**: `10.0.0.1:8084` → `https://tempmail.hs`
-- **Ansible Semaphore**: `10.0.0.1:8085` → `https://semaphoreui.hs`
+- **Ansible Semaphore** (Ansible, Terraform, OpenTofu, Terragrunt): `10.0.0.1:8085` → `https://semaphoreui.hs`
 - **Nginx**: `10.0.0.1:80` (HTTP redirect) and `10.0.0.1:443` (HTTPS)
 
 ### Environment Variables
@@ -465,7 +470,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - `nginx:alpine` - Reverse proxy
 - `ghcr.io/swe-himelrana/glance-dashboard:latest` - Startpage dashboard
 - `ghcr.io/swe-himelrana/tempmail:latest` - Temp mail service
-- `semaphoreui/semaphore:latest` - Ansible Semaphore UI
+- `semaphoreui/semaphore:latest` - Semaphore UI for Ansible, Terraform, OpenTofu, and Terragrunt
 
 ## Additional Documentation
 
