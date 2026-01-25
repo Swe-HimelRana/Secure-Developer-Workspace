@@ -101,7 +101,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/sbin/ip addr add 10.0.0.1/32 dev lo
+# Check if IP exists, add if it doesn't (ignore error if already exists)
+ExecStart=/bin/bash -c '/sbin/ip addr show dev lo | grep -q "10.0.0.1/32" || /sbin/ip addr add 10.0.0.1/32 dev lo'
 ExecStart=/sbin/ip link set lo up
 RemainAfterExit=yes
 
@@ -111,6 +112,20 @@ EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now vpn-ip.service
+```
+
+**If the service fails** (e.g., IP already exists), you can check and fix it:
+
+```bash
+# Check if IP is already assigned
+ip addr show dev lo | grep 10.0.0.1
+
+# If it's already there, the service will work on next boot
+# To manually fix if needed:
+sudo ip addr add 10.0.0.1/32 dev lo 2>/dev/null || echo "IP already exists (this is OK)"
+
+# Verify the service status
+sudo systemctl status vpn-ip.service
 ```
 **Set up DNS port forwarding** (required to avoid port 53 conflict with systemd-resolved):
 
