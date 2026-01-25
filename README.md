@@ -127,6 +127,28 @@ sudo ip addr add 10.0.0.1/32 dev lo 2>/dev/null || echo "IP already exists (this
 # Verify the service status
 sudo systemctl status vpn-ip.service
 ```
+
+**To remove the VPN IP address** (if needed for testing or troubleshooting):
+
+```bash
+# Remove the IP address from loopback interface
+sudo ip addr del 10.0.0.1/32 dev lo
+
+# Verify it's removed
+ip addr show dev lo | grep 10.0.0.1
+# (Should return nothing if removed successfully)
+```
+
+**Note:** If you have the `vpn-ip.service` enabled, it will re-add the IP on the next boot. To permanently remove it:
+
+```bash
+# Disable and stop the service
+sudo systemctl disable vpn-ip.service
+sudo systemctl stop vpn-ip.service
+
+# Then remove the IP
+sudo ip addr del 10.0.0.1/32 dev lo
+```
 **Set up DNS port forwarding** (required to avoid port 53 conflict with systemd-resolved):
 
    dnsmasq listens on port 5353, but WireGuard clients need to use standard port 53. Set up iptables port forwarding:
