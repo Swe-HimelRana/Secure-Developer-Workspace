@@ -255,8 +255,10 @@ services:
     ports:
       - "10.0.0.1:8084:80"
     volumes:
-      - ./tempmail.yml:/var/www/html/tempmail.yml:ro
-      - tempmail_data:/var/www/html/data
+      - type: bind
+        source: ./tempmail.yml
+        target: /var/www/html/tempmail.yml
+      - ./data:/var/www/html/data
     restart: unless-stopped
     depends_on:
       - wireguard

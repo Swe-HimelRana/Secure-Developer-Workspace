@@ -1,14 +1,18 @@
-```
 
+```
+Version: 1.0.0 - Tested on Ubuntu 24.04
++++++++++++++++++++++++++++++++++++++++
+Although this application is open source and licensed under the MIT License, 
+you must also agree to the individual licenses of all other services included in this setup.
 ```
 
 # Secure Developer Workspace
 
-A comprehensive, VPN-only development environment featuring Jenkins CI/CD, Kanban project management, collaborative whiteboarding, and diagramming tools - all accessible securely through WireGuard VPN.
+A comprehensive, VPN-only development environment featuring Jenkins CI/CD, Kanban project management, collaborative whiteboarding, diagramming tools, orchestration, configuration management, and application deployment tools - all accessible securely through WireGuard VPN.
 
 ## Why This Application?
 
-This setup provides a **secure, self-hosted development environment** for teams that need:
+This setup provides ready to use **secure, self-hosted development environment** for teams that need:
 
 - 🔒 **Maximum Security**: All services accessible only via WireGuard VPN - no public internet exposure
 - 🚀 **CI/CD Pipeline**: Jenkins with Docker agent for building and testing applications
@@ -48,7 +52,7 @@ This setup provides a **secure, self-hosted development environment** for teams 
 - **CPU**: 2 cores (4 cores recommended for better performance)
 - **RAM**: 2 GB (4-6 GB recommended)
 - **Storage**: 20 GB SSD (50 GB recommended for Jenkins data and logs)
-- **Network**: 1 Gbps connection
+- **Network**: 100 Mbps connection  (1 Gbps recommended for faster experience ) 
 
 **Why these requirements?**
 
@@ -78,35 +82,110 @@ cd Secure-Developer-Workspace
 
 ### 2. Set Up VPN IP Service
 
-The setup requires the VPN IP (`10.0.0.1`) to be available on the host. See [VPN IP Service Setup](#vpn-ip-service-setup) below.
+The setup requires the VPN IP (`10.0.0.1`) to be available on the host. 
 
-### 3. Configure Environment Variables
-
-Create a `.env` file:
+**Quick setup:**
 
 ```bash
-cp env.example .env  # Copy example file
-# Or create manually:
-nano .env
+sudo ip addr add 10.0.0.1/32 dev lo
 ```
 
-Add your configuration:
+**Make it persistent:**
 
 ```bash
-JENKINS_SECRET=your_secure_secret_here
-WIREGUARD_SERVER_URL=auto  # or your VPS public IP
-WIREGUARD_PEERS=1  # Number of WireGuard client configs to generate
+sudo tee /etc/systemd/system/vpn-ip.service >/dev/null <<'EOF'
+[Unit]
+Description=Add VPN service IP 10.0.0.1 to loopback for Docker binds
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/ip addr add 10.0.0.1/32 dev lo
+ExecStart=/sbin/ip link set lo up
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now vpn-ip.service
 ```
+**Set up DNS port forwarding** (required to avoid port 53 conflict with systemd-resolved):
 
-### 4. Start Services
+   dnsmasq listens on port 5353, but WireGuard clients need to use standard port 53. Set up iptables port forwarding:
 
-**Start all services:**
+   ```bash
+   # Redirect DNS requests from 10.0.0.1:53 to 10.0.0.1:5353
+   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p udp --dport 53 -j REDIRECT --to-port 5353
+   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p tcp --dport 53 -j REDIRECT --to-port 5353
+
+   # Make it persistent (Ubuntu/Debian)
+   sudo apt-get install -y iptables-persistent
+   sudo netfilter-persistent save
+   ```
+ **Why this is needed:**
+   - systemd-resolved uses `127.0.0.1:53` (server DNS)
+   - dnsmasq uses `10.0.0.1:5353` (VPN DNS, avoids conflict)
+   - iptables redirects `10.0.0.1:53` → `10.0.0.1:5353` (transparent to clients)
+   - WireGuard clients use `DNS = 10.0.0.1` (standard port 53, works with macOS)
+For more info about vpn ip configuration see [VPN IP Service Setup](VPN_IP_SETUP.md).
+
+### 3. Configuration Files (`.env`, `tempmail.yml`, `startpage.yml`)
+
+Before starting services, prepare the key configuration files:
+
+- **`.env`** (Jenkins agent + WireGuard server settings):
+
+  - Copy the example file and edit:
+
+    ```bash
+    cp env.example .env
+    nano .env
+    ```
+  - Set at least:
+
+    ```bash
+    JENKINS_SECRET=your_secret_here           # From Jenkins UI after creating docker-agent node
+    WIREGUARD_SERVER_URL=auto                # Or your VPS public IP
+    WIREGUARD_PEERS=1                        # Number of client configs to generate
+    SEMAPHORE_ADMIN_PASSWORD=changeme        # Change after first login
+    SEMAPHORE_ADMIN_EMAIL=admin@localhost
+    ```
+- **`tempmail.yml`** (TempMail service configuration):
+
+  - Use the provided sample as a starting point:
+
+    ```bash
+    cp tempmail.sample.yml tempmail.yml
+    nano tempmail.yml
+    ```
+  - Ensure `tempmail.yml` is a **file**, not a directory, and update:
+
+    - IMAP host
+    - catch-all email
+    - app-specific password
+    - domains you want to use
+- **`startpage.yml`** (Glance dashboard configuration):
+
+  - Edit `startpage.yml` in this repo to configure your dashboard sections, links, and widgets.
+  - This file is mounted into the `dashboard` container as `glance.yml`.
+
+> These files must exist and be valid **before** you start the containers, otherwise some services may fail or use defaults.
+
+### 4. Start Services (without Jenkins Docker agent)
+
+> The Jenkins Docker agent (`docker-agent`) needs a valid secret from the Jenkins UI.
+> **Do not** start it until you’ve created the node and updated `.env`.
+
+**Start all core services (excluding Jenkins `docker-agent`):**
 
 ```bash
-docker compose -f docker-compose.vpn.yml up -d
+docker compose -f docker-compose.vpn.yml up -d --scale docker-agent=0
 ```
 
-**Or start individual services:**
+**Or start individual core services: (Optional)**
 
 ```bash
 # Start WireGuard VPN (required first)
@@ -145,12 +224,80 @@ docker compose -f docker-compose.vpn.yml up -d nginx
 ```bash
 docker compose -f docker-compose.vpn.yml ps
 ```
+You should see all core services with status "Up" or "Healthy".
 
-You should see all services with status "Up" or "Healthy".
+**Get Wireguard client configuration:**
 
-### 5. Access Services
+   ```bash
+   docker compose -f docker-compose.vpn.yml exec wireguard cat /config/peer1/peer1.conf
+   ```
+  
+After connection you should be able to access all services.
 
-1. **Connect to WireGuard VPN** (see [WireGuard Setup](#wireguard-setup))
+### 5. Install SSL Certificate Authority (CA) on Your Devices
+
+**Important:** Before accessing services via HTTPS, you must install the mkcert root CA certificate on each device. This allows your browser to trust the SSL certificates used by the services.
+
+The repository includes the CA certificate files.
+- `mkcert-root-ca.crt` - Certificate file (use this for installation)
+- `mkcert-root-ca.pem` - Alternative format
+- `rootCA-key.pem` - Private key (keep secure, not needed for client installation)
+- `rootCA.pem` - Certificate (keep secure, not needed for client installation, Used for creating certificate)
+
+#### Install CA Certificate
+
+**On macOS:**
+1. Copy `mkcert-root-ca.crt` to your Mac
+2. Double-click the file to open it in Keychain Access
+3. Find "mkcert" or "mkcert root CA" in the login keychain
+4. Double-click the certificate
+5. Expand "Trust" section
+6. Set "When using this certificate" to **"Always Trust"**
+7. Close the window and enter your password when prompted
+
+**On Windows:**
+1. Copy `mkcert-root-ca.crt` to your Windows computer
+2. Double-click the file
+3. Click **"Install Certificate"**
+4. Choose **"Local Machine"** (requires admin rights)
+5. Select **"Place all certificates in the following store"**
+6. Click **"Browse"** and select **"Trusted Root Certification Authorities"**
+7. Click **"Next"** → **"Finish"**
+8. Click **"Yes"** on the security warning
+
+**On Linux (Ubuntu/Debian):**
+```bash
+# Copy the certificate to the system certificates directory
+sudo cp mkcert-root-ca.crt /usr/local/share/ca-certificates/mkcert-root-ca.crt
+
+# Update the certificate store
+sudo update-ca-certificates
+```
+
+**On iOS:**
+1. Copy `mkcert-root-ca.crt` to your iPhone/iPad (via AirDrop, email, or cloud storage)
+2. Open the file on your device
+3. Go to **Settings** → **General** → **VPN & Device Management** (or **Profiles & Device Management**)
+4. Tap on the downloaded profile
+5. Tap **"Install"** in the top right
+6. Enter your passcode
+7. Tap **"Install"** again to confirm
+8. Go to **Settings** → **General** → **About** → **Certificate Trust Settings**
+9. Enable trust for the "mkcert root CA" certificate
+
+**On Android:**
+1. Copy `mkcert-root-ca.crt` to your Android device
+2. Go to **Settings** → **Security** → **Encryption & credentials** (or **Install from storage**)
+3. Tap **"Install a certificate"** → **"CA certificate"**
+4. Select the `mkcert-root-ca.crt` file
+5. Enter a name for the certificate (e.g., "mkcert Root CA")
+6. Tap **"OK"**
+
+> **Note:** After installing the CA certificate, you may need to restart your browser or device for the changes to take effect.
+
+### 6. Access Services
+
+1. **Connect to WireGuard VPN** (see [WireGuard Setup](VPN_IP_SETUP.md))
 2. Access services via:
    - **Jenkins**: `https://jenkins.hs`
    - **Kanban**: `https://kanban.hs`
@@ -159,96 +306,17 @@ You should see all services with status "Up" or "Healthy".
    - **Startpage (Dashboard)**: `https://startpage.hs`
    - **TempMail**: `https://tempmail.hs`
    - **Ansible Semaphore** (Ansible, Terraform, OpenTofu, Terragrunt): `https://semaphoreui.hs`
-   - **TempMail**: `https://tempmail.hs`
 
-## Detailed Setup Guide
-
-### VPN IP Service Setup
-
-Docker containers need the VPN IP (`10.0.0.1`) to be available on the host before starting.
-
-**Quick setup:**
-
-```bash
-sudo ip addr add 10.0.0.1/32 dev lo
-```
-
-**Make it persistent:**
-
-```bash
-sudo tee /etc/systemd/system/vpn-ip.service >/dev/null <<'EOF'
-[Unit]
-Description=Add VPN service IP 10.0.0.1 to loopback for Docker binds
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/sbin/ip addr add 10.0.0.1/32 dev lo
-ExecStart=/sbin/ip link set lo up
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now vpn-ip.service
-```
-
-For detailed instructions, see the [VPN IP Service Setup Guide](VPN_IP_SETUP.md).
-
-### WireGuard Setup
-
-1. **Set up DNS port forwarding** (required to avoid port 53 conflict with systemd-resolved):
-
-   dnsmasq listens on port 5353, but WireGuard clients need to use standard port 53. Set up iptables port forwarding:
-
-   ```bash
-   # Redirect DNS requests from 10.0.0.1:53 to 10.0.0.1:5353
-   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p udp --dport 53 -j REDIRECT --to-port 5353
-   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p tcp --dport 53 -j REDIRECT --to-port 5353
-
-   # Make it persistent (Ubuntu/Debian)
-   sudo apt-get install -y iptables-persistent
-   sudo netfilter-persistent save
-   ```
-
-   **Why this is needed:**
-
-   - systemd-resolved uses `127.0.0.1:53` (server DNS)
-   - dnsmasq uses `10.0.0.1:5353` (VPN DNS, avoids conflict)
-   - iptables redirects `10.0.0.1:53` → `10.0.0.1:5353` (transparent to clients)
-   - WireGuard clients use `DNS = 10.0.0.1` (standard port 53, works with macOS)
-2. **Start WireGuard container:**
-
-   ```bash
-   docker compose -f docker-compose.vpn.yml up -d wireguard
-   ```
-3. **Start dnsmasq:**
-
-   ```bash
-   docker compose -f docker-compose.vpn.yml up -d dnsmasq
-   ```
-4. **Get client configuration:**
-
-   ```bash
-   docker compose -f docker-compose.vpn.yml exec wireguard cat /config/peer1/peer1.conf
-   ```
-5. **Import config to WireGuard client** on your device
-6. **Connect to VPN**
-7. **Verify DNS resolution:**
-
-   ```bash
-   nslookup jenkins.hs 10.0.0.1
-   ```
-
-### Jenkins Setup
+#### Jenkins Initial Setup
 
 1. **Access Jenkins:**
 
-   - Connect to WireGuard VPN
    - Open `https://jenkins.hs` in your browser
+   	For the very first Jenkins login, you need the **initial admin password**:
+
+		```bash
+		docker compose -f docker-compose.vpn.yml exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+		```
    - Complete initial setup wizard
 2. **Configure Docker Agent:**
 
@@ -269,55 +337,8 @@ For detailed instructions, see the [VPN IP Service Setup Guide](VPN_IP_SETUP.md)
    docker compose -f docker-compose.vpn.yml up -d docker-agent
    ```
 
-### Starting Individual Services
 
-**Excalidraw (draw.hs):**
-
-```bash
-docker compose -f docker-compose.vpn.yml up -d excalidraw
-# Access at: https://draw.hs
-```
-
-**Draw.io (diagram.hs):**
-
-```bash
-docker compose -f docker-compose.vpn.yml up -d drawio
-# Access at: https://diagram.hs
-```
-
-**Kanban Board:**
-
-```bash
-docker compose -f docker-compose.vpn.yml up -d kanban
-# Access at: https://kanban.hs
-```
-
-**Startpage (Dashboard):**
-
-```bash
-docker compose -f docker-compose.vpn.yml up -d dashboard
-# Access at: https://startpage.hs
-```
-
-**TempMail:**
-
-```bash
-docker compose -f docker-compose.vpn.yml up -d tempmail
-# Access at: https://tempmail.hs
-```
-
-**Ansible Semaphore (Ansible, Terraform, OpenTofu, Terragrunt):**
-
-```bash
-docker compose -f docker-compose.vpn.yml up -d semaphore
-# Access at: https://semaphoreui.hs
-# Supports: Ansible playbooks, Terraform, OpenTofu, and Terragrunt workflows
-```
-
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-read_file
-
-**Check service status:**
+**Check individual service status:**
 
 ```bash
 # Check if specific service is running
@@ -336,17 +357,6 @@ docker compose -f docker-compose.vpn.yml logs tempmail
 docker compose -f docker-compose.vpn.yml logs semaphore
 ```
 
-### SSL Certificate Setup
-
-For HTTPS access, you need SSL certificates. See the [SSL Certificate Guide](SSL_CERTIFICATE.md) for detailed instructions.
-
-**Quick summary:**
-
-1. Install `mkcert` on your local machine
-2. Generate certificates: `mkcert jenkins.hs kanban.hs draw.hs diagram.hs startpage.hs tempmail.hs semaphoreui.hs`
-3. Copy certificates to server: `scp certs/*.pem user@server:/path/to/app/certs/`
-4. Install CA certificate on your devices
-5. Restart nginx: `docker compose restart nginx`
 
 ## Configuration
 
@@ -364,18 +374,6 @@ All services bind to `10.0.0.1` (VPN interface only):
 - **Ansible Semaphore** (Ansible, Terraform, OpenTofu, Terragrunt): `10.0.0.1:8085` → `https://semaphoreui.hs`
 - **Nginx**: `10.0.0.1:80` (HTTP redirect) and `10.0.0.1:443` (HTTPS)
 
-### Environment Variables
-
-Edit `.env` file:
-
-```bash
-# Jenkins Agent Secret (get from Jenkins UI after creating node)
-JENKINS_SECRET=your_secret_here
-
-# WireGuard Configuration
-WIREGUARD_SERVER_URL=auto  # Auto-detect or set to your VPS IP
-WIREGUARD_PEERS=1  # Number of client configs to generate
-```
 
 ### Customizing Services
 
@@ -386,16 +384,51 @@ You can modify `docker-compose.vpn.yml` to:
 - Add environment variables
 - Modify service configurations
 
+## Authentication & Default Credentials
+
+**Jenkins**
+
+- Initial admin password (first login):
+  - `docker compose -f docker-compose.vpn.yml exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword`
+- Jenkins Docker agent:
+  - Node name: `docker-agent`
+  - Agent secret: from Jenkins UI (`Manage Jenkins` → `Manage Nodes and Clouds` → `docker-agent`)
+  - Store in `.env` as `JENKINS_SECRET=...`
+
+**WireGuard**
+
+- Peer configs:
+  - `docker compose -f docker-compose.vpn.yml exec wireguard cat /config/peer1/peer1.conf`
+- Import `peer1.conf` into your WireGuard client.
+
+**TempMail**
+
+- Config file: `tempmail.yml` (host) → `/var/www/html/tempmail.yml` (container)
+- Contains:
+  - IMAP host, catch-all email, app password, and allowed domains.
+- **Do not commit real credentials**; keep them only in your private `tempmail.yml`.
+
+**Semaphore UI**
+
+- Admin user (on fresh DB initialization):
+  - Username: `admin`
+  - Password: from `.env` → `SEMAPHORE_ADMIN_PASSWORD` (default `changeme`, change after first login)
+  - Email: from `.env` → `SEMAPHORE_ADMIN_EMAIL`
+- Credentials are only applied when Semaphore initializes a new BoltDB database.
+
 ## Adding New Services
 
 You can add additional services to this setup. However, **keep it focused on essential developer tools**.
 
 **Good additions:**
 
+> **Note**: These services were not included as they may not be required for all developers or development servers. However, if you believe they are required, you can add them and we recommend creating a pull request.
+
 - Code review tools (e.g., Gitea, GitLab)
 - Documentation servers (e.g., Wiki.js, BookStack)
 - Monitoring tools (e.g., Grafana, Prometheus)
 - Development databases (e.g., PostgreSQL, Redis)
+- Kubernetes cluster (e.g., Minikube) 
 
 **Avoid:**
 
@@ -441,7 +474,11 @@ docker compose -f docker-compose.vpn.yml up -d
 ### Backup Jenkins Data
 
 ```bash
-docker run --rm -v app_jenkins_home:/data -v $(pwd):/backup alpine tar czf /backup/jenkins-backup.tar.gz /data
+# Find the actual volume name first
+docker volume ls | grep jenkins_home
+
+# Backup (replace 'secure-developer-workspace_jenkins_home' with your actual volume name)
+docker run --rm -v secure-developer-workspace_jenkins_home:/data -v $(pwd):/backup alpine tar czf /backup/jenkins-backup.tar.gz /data
 ```
 
 ### View Logs
@@ -470,7 +507,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Author
 
-Created by **Himel Rana**
+Created by **Himel**
 
 Contact: contact[at]himelrana.com
 
@@ -527,4 +564,4 @@ For issues, questions, or contributions:
 
 ---
 
-**Note**: This setup is designed for development/internal use. For production deployments, consider additional security hardening, monitoring, and backup strategies.
+**Note**: This setup is designed for development/internal use. For production deployments, consider additional production-grade database, security hardening (although current security is not bad at all), monitoring, and backup strategies.
