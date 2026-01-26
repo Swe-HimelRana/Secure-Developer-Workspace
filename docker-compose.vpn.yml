@@ -258,7 +258,10 @@ services:
       - type: bind
         source: ./tempmail.yml
         target: /var/www/html/tempmail.yml
-      - ./data:/var/www/html/data
+        read_only: true
+      - tempmail_data:/var/www/html/data
+    # Fix permissions for SQLite database (www-data user needs write access)
+    user: "www-data:www-data"
     restart: unless-stopped
     depends_on:
       - wireguard
@@ -350,4 +353,3 @@ volumes:
   tempmail_data:
   semaphore_data:
   semaphore_playbooks:
-
