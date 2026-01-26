@@ -84,13 +84,7 @@ cd Secure-Developer-Workspace
 
 The setup requires the VPN IP (`10.0.0.1`) to be available on the host. 
 
-**Quick setup:**
-
-```bash
-sudo ip addr add 10.0.0.1/32 dev lo
-```
-
-**Make it persistent:**
+**Recommended: Make it persistent with systemd service:**
 
 ```bash
 sudo tee /etc/systemd/system/vpn-ip.service >/dev/null <<'EOF'
@@ -101,7 +95,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-# Check if IP exists, add if it doesn't (ignore error if already exists)
+# Check if IP exists, add if it doesn't (safe to run even if IP already exists)
 ExecStart=/bin/bash -c '/sbin/ip addr show dev lo | grep -q "10.0.0.1/32" || /sbin/ip addr add 10.0.0.1/32 dev lo'
 ExecStart=/sbin/ip link set lo up
 RemainAfterExit=yes
@@ -113,6 +107,16 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now vpn-ip.service
 ```
+
+**Alternative: Quick setup (temporary, for testing only):**
+
+> **Note:** Only use this if you want to test immediately without persistence. The systemd service above is recommended for production use.
+
+```bash
+sudo ip addr add 10.0.0.1/32 dev lo
+```
+
+> **Important:** If you use the quick setup above, you can still create the systemd service later. The service will detect that the IP already exists and won't cause conflicts. However, for a clean setup, it's better to use the systemd service from the start.
 
 **If the service fails** (e.g., IP already exists), you can check and fix it:
 
