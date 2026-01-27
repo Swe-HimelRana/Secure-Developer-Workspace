@@ -153,7 +153,7 @@ sudo systemctl stop vpn-ip.service
 # Then remove the IP
 sudo ip addr del 10.0.0.1/32 dev lo
 ```
-**Set up DNS port forwarding** (required to avoid port 53 conflict with systemd-resolved):
+**Set up DNS port forwarding (Important!)** (required to avoid port 53 conflict with systemd-resolved):
 
    dnsmasq listens on port 5353, but WireGuard clients need to use standard port 53. Set up iptables port forwarding:
 
@@ -171,6 +171,30 @@ sudo ip addr del 10.0.0.1/32 dev lo
    - dnsmasq uses `10.0.0.1:5353` (VPN DNS, avoids conflict)
    - iptables redirects `10.0.0.1:53` → `10.0.0.1:5353` (transparent to clients)
    - WireGuard clients use `DNS = 10.0.0.1` (standard port 53, works with macOS)
+
+**Set up Nginx Port Forwarding (Important!)**  (required to access services via standard ports):
+
+Since your main server likely uses ports 80 and 443, we use `iptables` to redirect traffic destined for `10.0.0.1:80/443` to the Docker containers listening on `8980/8943`.
+
+1. **Add redirection rules:**
+   ```bash
+   # Redirect HTTP 10.0.0.1:80 -> 8980
+   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p tcp --dport 80 -j REDIRECT --to-port 8980
+
+   # Redirect HTTPS 10.0.0.1:443 -> 8943
+   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p tcp --dport 443 -j REDIRECT --to-port 8943
+   ```
+
+2. **Make it persistent** (Ubuntu/Debian):
+   ```bash
+   sudo apt-get install -y iptables-persistent
+   sudo netfilter-persistent save
+   ```
+
+**Why is this needed?**
+- Prevents conflict with your main Nginx, Traefik or Apache server binding to `0.0.0.0:80`.
+- Allows you to access apps via standard URLs (e.g., `https://jenkins.hs`) without typing ports.
+
 For more info about vpn ip configuration see [VPN IP Service Setup](VPN_IP_SETUP.md).
 
 ### 3. Configuration Files (`.env`, `tempmail.yml`, `startpage.yml`)
