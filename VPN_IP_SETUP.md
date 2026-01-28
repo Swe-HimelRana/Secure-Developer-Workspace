@@ -73,14 +73,14 @@ Since your main server likely uses ports 80 and 443, we use `iptables` to redire
 1. **Add redirection rules:**
    ```bash
    # Redirect HTTP 10.200.0.1:80 -> 8980
-   sudo iptables -t nat -A PREROUTING -d 10.200.0.1 -p tcp --dport 80 -j REDIRECT --to-port 8980
+   sudo iptables -t nat -I PREROUTING 1 -d 10.200.0.1 -p tcp --dport 80 -j REDIRECT --to-port 8980
 
    # Redirect HTTPS 10.200.0.1:443 -> 8943
-   sudo iptables -t nat -A PREROUTING -d 10.200.0.1 -p tcp --dport 443 -j REDIRECT --to-port 8943
+   sudo iptables -t nat -I PREROUTING 1 -d 10.200.0.1 -p tcp --dport 443 -j REDIRECT --to-port 8943
    
    # Redirect DNS 10.200.0.1:53 -> 5353
-   sudo iptables -t nat -A PREROUTING -d 10.200.0.1 -p udp --dport 53 -j REDIRECT --to-port 5353
-   sudo iptables -t nat -A PREROUTING -d 10.200.0.1 -p tcp --dport 53 -j REDIRECT --to-port 5353
+   sudo iptables -t nat -I PREROUTING 1 -d 10.200.0.1 -p udp --dport 53 -j REDIRECT --to-port 5353
+   sudo iptables -t nat -I PREROUTING 1 -d 10.200.0.1 -p tcp --dport 53 -j REDIRECT --to-port 5353
    ```
 
 2. **Make it persistent** (Ubuntu/Debian):
