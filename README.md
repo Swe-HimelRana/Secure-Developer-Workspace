@@ -193,6 +193,12 @@ Since your main server likely uses ports 80 and 443, we use `iptables` to redire
    sudo netfilter-persistent save
    ```
 
+3. **Verify Persistence:**
+   Run this to confirm rules are saved:
+   ```bash
+   sudo cat /etc/iptables/rules.v4 | grep 10.200.0.1
+   ```
+
 **Why is this needed?**
 - Prevents conflict with your main Nginx, Traefik or Apache server binding to `0.0.0.0:80`.
 - Allows you to access apps via standard URLs (e.g., `https://jenkins.hs`) without typing ports.
