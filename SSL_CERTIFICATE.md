@@ -103,8 +103,8 @@ nginx:
     - ./nginx.conf:/etc/nginx/nginx.conf:ro
     - ./certs:/etc/nginx/certs:ro  # Certificates directory
   ports:
-    - "10.0.0.1:8980:80"
-    - "10.0.0.1:8943:443"  # HTTPS port (Mapped to 8943, forwarded from 443 via iptables)
+    - "10.200.0.1:8980:80"
+    - "10.200.0.1:8943:443"  # HTTPS port (Mapped to 8943, forwarded from 443 via iptables)
 ```
 
 ## Step 6: Verify Nginx Configuration
@@ -236,7 +236,7 @@ docker compose exec nginx ls -la /etc/nginx/certs/
 sudo ss -tulpn | grep :443
 
 # Check docker-compose ports configuration
-# Should have: "10.0.0.1:8943:443"
+# Should have: "10.200.0.1:8943:443"
 
 # Restart nginx
 docker compose restart nginx

@@ -12,22 +12,22 @@ services:
       - dnsmasq_config:/etc/dnsmasq.d
       - dnsmasq_leases:/var/lib/misc
     command:
-      - --address=/hs/10.0.0.1
-      - --address=/jenkins.hs/10.0.0.1
-      - --address=/kanban.hs/10.0.0.1
-      - --address=/draw.hs/10.0.0.1
-      - --address=/diagram.hs/10.0.0.1
-      - --address=/startpage.hs/10.0.0.1
-      - --address=/tempmail.hs/10.0.0.1
-      - --address=/semaphoreui.hs/10.0.0.1
+      - --address=/hs/10.200.0.1
+      - --address=/jenkins.hs/10.200.0.1
+      - --address=/kanban.hs/10.200.0.1
+      - --address=/draw.hs/10.200.0.1
+      - --address=/diagram.hs/10.200.0.1
+      - --address=/startpage.hs/10.200.0.1
+      - --address=/tempmail.hs/10.200.0.1
+      - --address=/semaphoreui.hs/10.200.0.1
       - --server=8.8.8.8
       - --server=8.8.4.4
       - --log-queries
       - --no-resolv # Don't use /etc/resolv.conf
-      - --listen-address=10.0.0.1 # Listen only on VPN interface (10.0.0.1)
+      - --listen-address=10.200.0.1 # Listen only on VPN interface (10.200.0.1)
       - --bind-interfaces # Only bind to specified interfaces
       - --port=5353 # Use non-standard port to avoid conflict with systemd-resolved (port 53)
-      # Port forwarding: iptables redirects 10.0.0.1:53 → 10.0.0.1:5353 (see README)
+      # Port forwarding: iptables redirects 10.200.0.1:53 → 10.200.0.1:5353 (see README)
     depends_on:
       - wireguard
     restart: unless-stopped
@@ -36,9 +36,9 @@ services:
         limits:
           cpus: '0.1'
           memory: 64M
-    # Note: dnsmasq listens on 10.0.0.1:5353 to avoid conflict with systemd-resolved (127.0.0.1:53)
-    # iptables port forwarding redirects 10.0.0.1:53 → 10.0.0.1:5353
-    # WireGuard clients use standard DNS = 10.0.0.1 (port 53, transparently forwarded to 5353)
+    # Note: dnsmasq listens on 10.200.0.1:5353 to avoid conflict with systemd-resolved (127.0.0.1:53)
+    # iptables port forwarding redirects 10.200.0.1:53 → 10.200.0.1:5353
+    # WireGuard clients use standard DNS = 10.200.0.1 (port 53, transparently forwarded to 5353)
 
   wireguard:
     image: linuxserver/wireguard:latest
@@ -55,9 +55,9 @@ services:
       - SERVERURL=${WIREGUARD_SERVER_URL:-auto} # Auto-detect or set to your VPS IP
       - SERVERPORT=51820 # Port WireGuard listens on (must match actual listening port with host networking)
       - PEERS=${WIREGUARD_PEERS:-1} # Number of client configs to generate
-      - PEERDNS=10.0.0.1 # Use dnsmasq on standard port 53 for custom domain resolution (jenkins.hs, kanban.hs)
-      - INTERNAL_SUBNET=10.0.0.0
-      - ALLOWEDIPS=10.0.0.0/24,172.17.0.0/16 # Split tunnel: Only VPN and Docker networks route through VPN, other traffic uses normal connection
+      - PEERDNS=10.200.0.1 # Use dnsmasq on standard port 53 for custom domain resolution (jenkins.hs, kanban.hs)
+      - INTERNAL_SUBNET=10.200.0.0
+      - ALLOWEDIPS=10.200.0.0/24,10.0.0.0/24 # VPN clients can reach VPN services AND standard Docker bridge
       - PERSISTENTKEEPALIVE_PEERS=
       - LOG_CONFS=true
     volumes:
@@ -80,11 +80,11 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Bind only to VPN interface (10.200.0.1) - accessible only via WireGuard VPN
     # Requires VPN IP service setup (see README.md)
     ports:
-      - "10.0.0.1:9080:8080"
-      - "10.0.0.1:9500:50000"
+      - "10.200.0.1:9080:8080"
+      - "10.200.0.1:9500:50000"
     depends_on:
       - wireguard
     volumes:
@@ -144,10 +144,10 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Bind only to VPN interface (10.200.0.1) - accessible only via WireGuard VPN
     # Requires VPN IP service setup (see README.md)
     ports:
-      - "10.0.0.1:9090:80"
+      - "10.200.0.1:9090:80"
       # Access via: http://kanban.hs:9090 (when connected to VPN)
     depends_on:
       - wireguard
@@ -174,10 +174,10 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Bind only to VPN interface (10.200.0.1) - accessible only via WireGuard VPN
     # Requires VPN IP service setup (see README.md)
     ports:
-      - "10.0.0.1:8081:80"
+      - "10.200.0.1:8081:80"
       # Access via: http://draw.hs (when connected to VPN)
     depends_on:
       - wireguard
@@ -198,10 +198,10 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Bind only to VPN interface (10.200.0.1) - accessible only via WireGuard VPN
     # Requires VPN IP service setup (see README.md)
     ports:
-      - "10.0.0.1:8082:8080"
+      - "10.200.0.1:8082:8080"
       # Access via: http://diagram.hs (when connected to VPN)
     depends_on:
       - wireguard
@@ -222,9 +222,9 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    # Bind only to VPN interface (10.0.0.1)
+    # Bind only to VPN interface (10.200.0.1)
     ports:
-      - "10.0.0.1:8083:8080"
+      - "10.200.0.1:8083:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./startpage.yml:/app/config/glance.yml:ro
@@ -250,10 +250,10 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Bind only to VPN interface (10.200.0.1) - accessible only via WireGuard VPN
     # Requires VPN IP service setup (see README.md)
     ports:
-      - "10.0.0.1:8084:80"
+      - "10.200.0.1:8084:80"
     volumes:
       - type: bind
         source: ./tempmail.yml
@@ -281,10 +281,10 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Bind only to VPN interface (10.200.0.1) - accessible only via WireGuard VPN
     # Requires VPN IP service setup (see README.md)
     ports:
-      - "10.0.0.1:8085:3000"
+      - "10.200.0.1:8085:3000"
       # Access via: https://ansible.hs (when connected to VPN)
     environment:
       - SEMAPHORE_DB_DIALECT=bolt # Use BoltDB (lightweight, no MySQL needed)
@@ -311,12 +311,12 @@ services:
   nginx:
     image: nginx:alpine
     container_name: nginx-proxy
-    # Bind only to VPN interface (10.0.0.1) - accessible only via WireGuard VPN
+    # Bind only to VPN interface (10.200.0.1) - accessible only via WireGuard VPN
     # Requires VPN IP service setup (see README.md)
     ports:
-      - "10.0.0.1:8980:80"
-      - "10.0.0.1:8943:443"
-      # Forwarding: iptables redirects 10.0.0.1:80 -> 8980, 443 -> 8943
+      - "10.200.0.1:8980:80"
+      - "10.200.0.1:8943:443"
+      # Forwarding: iptables redirects 10.200.0.1:80 -> 8980, 443 -> 8943
       # This allows access via standard ports (http://jenkins.hs, https://jenkins.hs)
       # without conflict with the main server's Nginx on 0.0.0.0:80/443
     volumes:

@@ -82,21 +82,23 @@ cd Secure-Developer-Workspace
 
 ### 2. Set Up VPN IP Service
 
-The setup requires the VPN IP (`10.0.0.1`) to be available on the host. 
+The setup requires the VPN IP (`10.200.0.1`) to be available on the host. 
 
 **Recommended: Make it persistent with systemd service:**
+
+> **Checking for Conflicts:** Before starting, check if `10.200.0.1` is free. If you need to use a different IP, see [Changing the IP Pool](CHANGE_IP_POOL.md).
 
 ```bash
 sudo tee /etc/systemd/system/vpn-ip.service >/dev/null <<'EOF'
 [Unit]
-Description=Add VPN service IP 10.0.0.1 to loopback for Docker binds
+Description=Add VPN service IP 10.200.0.1 to loopback for Docker binds
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 # Check if IP exists, add if it doesn't (safe to run even if IP already exists)
-ExecStart=/bin/bash -c '/sbin/ip addr show dev lo | grep -q "10.0.0.1/32" || /sbin/ip addr add 10.0.0.1/32 dev lo'
+ExecStart=/bin/bash -c '/sbin/ip addr show dev lo | grep -q "10.200.0.1/32" || /sbin/ip addr add 10.200.0.1/32 dev lo'
 ExecStart=/sbin/ip link set lo up
 RemainAfterExit=yes
 
@@ -113,7 +115,7 @@ sudo systemctl enable --now vpn-ip.service
 > **Note:** Only use this if you want to test immediately without persistence. The systemd service above is recommended for production use.
 
 ```bash
-sudo ip addr add 10.0.0.1/32 dev lo
+sudo ip addr add 10.200.0.1/32 dev lo
 ```
 
 > **Important:** If you use the quick setup above, you can still create the systemd service later. The service will detect that the IP already exists and won't cause conflicts. However, for a clean setup, it's better to use the systemd service from the start.
@@ -122,11 +124,11 @@ sudo ip addr add 10.0.0.1/32 dev lo
 
 ```bash
 # Check if IP is already assigned
-ip addr show dev lo | grep 10.0.0.1
+ip addr show dev lo | grep 10.200.0.1
 
 # If it's already there, the service will work on next boot
 # To manually fix if needed:
-sudo ip addr add 10.0.0.1/32 dev lo 2>/dev/null || echo "IP already exists (this is OK)"
+sudo ip addr add 10.200.0.1/32 dev lo 2>/dev/null || echo "IP already exists (this is OK)"
 
 # Verify the service status
 sudo systemctl status vpn-ip.service
@@ -136,10 +138,10 @@ sudo systemctl status vpn-ip.service
 
 ```bash
 # Remove the IP address from loopback interface
-sudo ip addr del 10.0.0.1/32 dev lo
+sudo ip addr del 10.200.0.1/32 dev lo
 
 # Verify it's removed
-ip addr show dev lo | grep 10.0.0.1
+ip addr show dev lo | grep 10.200.0.1
 # (Should return nothing if removed successfully)
 ```
 
@@ -151,16 +153,16 @@ sudo systemctl disable vpn-ip.service
 sudo systemctl stop vpn-ip.service
 
 # Then remove the IP
-sudo ip addr del 10.0.0.1/32 dev lo
+sudo ip addr del 10.200.0.1/32 dev lo
 ```
 **Set up DNS port forwarding (Important!)** (required to avoid port 53 conflict with systemd-resolved):
 
    dnsmasq listens on port 5353, but WireGuard clients need to use standard port 53. Set up iptables port forwarding:
 
    ```bash
-   # Redirect DNS requests from 10.0.0.1:53 to 10.0.0.1:5353
-   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p udp --dport 53 -j REDIRECT --to-port 5353
-   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p tcp --dport 53 -j REDIRECT --to-port 5353
+   # Redirect DNS requests from 10.200.0.1:53 to 10.200.0.1:5353
+   sudo iptables -t nat -A PREROUTING -d 10.200.0.1 -p udp --dport 53 -j REDIRECT --to-port 5353
+   sudo iptables -t nat -A PREROUTING -d 10.200.0.1 -p tcp --dport 53 -j REDIRECT --to-port 5353
 
    # Make it persistent (Ubuntu/Debian)
    sudo apt-get install -y iptables-persistent
@@ -168,21 +170,21 @@ sudo ip addr del 10.0.0.1/32 dev lo
    ```
  **Why this is needed:**
    - systemd-resolved uses `127.0.0.1:53` (server DNS)
-   - dnsmasq uses `10.0.0.1:5353` (VPN DNS, avoids conflict)
-   - iptables redirects `10.0.0.1:53` → `10.0.0.1:5353` (transparent to clients)
-   - WireGuard clients use `DNS = 10.0.0.1` (standard port 53, works with macOS)
+   - dnsmasq uses `10.200.0.1:5353` (VPN DNS, avoids conflict)
+   - iptables redirects `10.200.0.1:53` → `10.200.0.1:5353` (transparent to clients)
+   - WireGuard clients use `DNS = 10.200.0.1` (standard port 53, works with macOS)
 
 **Set up Nginx Port Forwarding (Important!)**  (required to access services via standard ports):
 
-Since your main server likely uses ports 80 and 443, we use `iptables` to redirect traffic destined for `10.0.0.1:80/443` to the Docker containers listening on `8980/8943`.
+Since your main server likely uses ports 80 and 443, we use `iptables` to redirect traffic destined for `10.200.0.1:80/443` to the Docker containers listening on `8980/8943`.
 
 1. **Add redirection rules:**
    ```bash
-   # Redirect HTTP 10.0.0.1:80 -> 8980
-   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p tcp --dport 80 -j REDIRECT --to-port 8980
+   # Redirect HTTP 10.200.0.1:80 -> 8980
+   sudo iptables -t nat -A PREROUTING -d 10.200.0.1 -p tcp --dport 80 -j REDIRECT --to-port 8980
 
-   # Redirect HTTPS 10.0.0.1:443 -> 8943
-   sudo iptables -t nat -A PREROUTING -d 10.0.0.1 -p tcp --dport 443 -j REDIRECT --to-port 8943
+   # Redirect HTTPS 10.200.0.1:443 -> 8943
+   sudo iptables -t nat -A PREROUTING -d 10.200.0.1 -p tcp --dport 443 -j REDIRECT --to-port 8943
    ```
 
 2. **Make it persistent** (Ubuntu/Debian):
@@ -194,6 +196,7 @@ Since your main server likely uses ports 80 and 443, we use `iptables` to redire
 **Why is this needed?**
 - Prevents conflict with your main Nginx, Traefik or Apache server binding to `0.0.0.0:80`.
 - Allows you to access apps via standard URLs (e.g., `https://jenkins.hs`) without typing ports.
+
 
 For more info about vpn ip configuration see [VPN IP Service Setup](VPN_IP_SETUP.md).
 
@@ -427,17 +430,17 @@ docker compose -f docker-compose.vpn.yml logs semaphore
 
 ### Service Ports
 
-All services bind to `10.0.0.1` (VPN interface only):
+All services bind to `10.200.0.1` (VPN interface only):
 
-- **Jenkins**: `10.0.0.1:9080` → `https://jenkins.hs`
-- **Jenkins Agent**: `10.0.0.1:9500`
-- **Kanban**: `10.0.0.1:9090` → `https://kanban.hs`
-- **Excalidraw**: `10.0.0.1:8081` → `https://draw.hs`
-- **Draw.io**: `10.0.0.1:8082` → `https://diagram.hs`
-- **Startpage (Dashboard)**: `10.0.0.1:8083` → `https://startpage.hs`
-- **TempMail**: `10.0.0.1:8084` → `https://tempmail.hs`
-- **Ansible Semaphore** (Ansible, Terraform, OpenTofu, Terragrunt): `10.0.0.1:8085` → `https://semaphoreui.hs`
-- **Nginx**: `10.0.0.1:80` (HTTP redirect) and `10.0.0.1:443` (HTTPS)
+- **Jenkins**: `10.200.0.1:9080` → `https://jenkins.hs`
+- **Jenkins Agent**: `10.200.0.1:9500`
+- **Kanban**: `10.200.0.1:9090` → `https://kanban.hs`
+- **Excalidraw**: `10.200.0.1:8081` → `https://draw.hs`
+- **Draw.io**: `10.200.0.1:8082` → `https://diagram.hs`
+- **Startpage (Dashboard)**: `10.200.0.1:8083` → `https://startpage.hs`
+- **TempMail**: `10.200.0.1:8084` → `https://tempmail.hs`
+- **Ansible Semaphore** (Ansible, Terraform, OpenTofu, Terragrunt): `10.200.0.1:8085` → `https://semaphoreui.hs`
+- **Nginx**: `10.200.0.1:80` (HTTP redirect) and `10.200.0.1:443` (HTTPS)
 
 
 ### Customizing Services
@@ -504,7 +507,7 @@ You can add additional services to this setup. However, **keep it focused on ess
 **To add a service:**
 
 1. Add service to `docker-compose.vpn.yml`
-2. Add DNS entry in dnsmasq command: `--address=/newservice.hs/10.0.0.1`
+2. Add DNS entry in dnsmasq command: `--address=/newservice.hs/10.200.0.1`
 3. Add nginx reverse proxy configuration
 4. Update this README with the new service
 
@@ -512,8 +515,8 @@ You can add additional services to this setup. However, **keep it focused on ess
 
 ### Services Not Accessible
 
-- **Verify VPN connection**: `ping 10.0.0.1`
-- **Check DNS resolution**: `nslookup jenkins.hs 10.0.0.1`
+- **Verify VPN connection**: `ping 10.200.0.1`
+- **Check DNS resolution**: `nslookup jenkins.hs 10.200.0.1`
 - **Verify containers are running**: `docker compose ps`
 - **Check logs**: `docker compose logs [service-name]`
 
