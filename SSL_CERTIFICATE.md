@@ -8,6 +8,8 @@ This guide explains how to set up SSL certificates for your VPN-only services us
 - Access to the server where certificates will be deployed
 - WireGuard VPN connection configured
 
+> **Note:** Generating new certificates is **optional**. The repository includes pre-generated certificates in the `certs/` directory. You can simply install the `mkcert-root-ca.crt` on your client devices to get started immediately. Follow "Step 8: Install CA Certificate" if you choose to use the existing certificates.
+
 ## Step 1: Install mkcert (Local Machine)
 
 **On macOS:**
@@ -56,7 +58,7 @@ cd certs
 Generate certificates for all your services:
 
 ```bash
-mkcert jenkins.hs kanban.hs draw.hs diagram.hs
+mkcert jenkins.hs kanban.hs draw.hs diagram.hs startpage.hs tempmail.hs semaphoreui.hs
 ```
 
 **Output:**
@@ -72,7 +74,7 @@ The certificate is at "./jenkins.hs+3.pem" and the key at "./jenkins.hs+3-key.pe
 It will expire on [date] 🗓
 ```
 
-**Note:** The certificate name includes `+3` because it covers 3 additional domains (4 total: jenkins.hs + 3 others).
+**Note:** The certificate name includes `+6` because it covers 6 additional domains (7 total: jenkins.hs + 6 others).
 
 ## Step 4: Deploy Certificates to Server
 
@@ -195,6 +197,9 @@ Once connected to WireGuard VPN and CA certificate installed:
 - **Kanban**: `https://kanban.hs`
 - **Excalidraw**: `https://draw.hs`
 - **Draw.io**: `https://diagram.hs`
+- **Startpage (Dashboard)**: `https://startpage.hs`
+- **TempMail**: `https://tempmail.hs`
+- **Ansible Semaphore**: `https://semaphoreui.hs`
 
 **Note:** HTTP requests automatically redirect to HTTPS.
 
@@ -219,8 +224,8 @@ Once connected to WireGuard VPN and CA certificate installed:
 ls -la /root/app/certs/
 
 # Check file permissions (should be readable)
-chmod 644 /root/app/certs/jenkins.hs+3.pem
-chmod 600 /root/app/certs/jenkins.hs+3-key.pem
+chmod 644 /root/app/certs/jenkins.hs+6.pem
+chmod 600 /root/app/certs/jenkins.hs+6-key.pem
 
 # Verify docker volume mount
 docker compose exec nginx ls -la /etc/nginx/certs/
@@ -249,11 +254,11 @@ docker compose restart nginx
 **Solution:**
 ```bash
 # Check expiration date
-openssl x509 -in certs/jenkins.hs+3.pem -noout -dates
+openssl x509 -in certs/jenkins.hs+6.pem -noout -dates
 
 # Regenerate certificates
 cd certs
-mkcert jenkins.hs kanban.hs draw.hs diagram.hs
+mkcert jenkins.hs kanban.hs draw.hs diagram.hs startpage.hs tempmail.hs semaphoreui.hs
 
 # Restart nginx
 docker compose restart nginx
@@ -287,8 +292,8 @@ It will expire on 20 April 2028 🗓
 ```
 myJenkinsSetup/
 ├── certs/
-│   ├── jenkins.hs+3.pem          # Certificate (public)
-│   ├── jenkins.hs+3-key.pem     # Private key (keep secure!)
+│   ├── jenkins.hs+6.pem          # Certificate (public)
+│   ├── jenkins.hs+6-key.pem     # Private key (keep secure!)
 │   └── rootCA.pem                # CA certificate (for client installation)
 ├── nginx.conf                    # Nginx config with SSL
 └── docker-compose.vpn.yml       # Docker compose with cert volume mount
